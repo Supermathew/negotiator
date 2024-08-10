@@ -1,0 +1,14 @@
+<!-- templates/accounts/account_verification_email.html -->
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Account Activated</title>
+</head>
+<body>
+    <p>Hi {{ user.first_name }},</p>
+    <p>Your Account is activated!! You can start Ordering the medicines:</p>
+    {% comment %} <a href="http://{{ domain }}{% url 'activate' uidb64=uid token=token %}">Activate Account</a> {% endcomment %}
+    <p>Thank you!</p>
+</body>
+</html>
