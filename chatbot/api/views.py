@@ -193,4 +193,34 @@ class UpdateChatbotSessionView(APIView):
         }
 
         return Response(response_data, status=status.HTTP_200_OK)
+    
+    
+class ResetChatbotView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get_session(self, user):
+        try:
+            session = UserSession.objects.get(user=user)
+        except UserSession.DoesNotExist:
+            session = UserSession.objects.create(user=user, current_step='start', state=json.dumps({}))
+        return session
+
+    def post(self, request, *args, **kwargs):
+        user = request.user
+        session = self.get_session(user)
+        
+        # Extract message and next from the request data
+        session.current_step = "start"
+        session.state = json.dumps({})
+        session.questions_and_answers = json.dumps({})
+        session.save()
+
+
+        response_data = {
+            'message': "Chatbot Reset Successfully",
+        }
+
+        return Response(response_data, status=status.HTTP_200_OK)
+
+
 
