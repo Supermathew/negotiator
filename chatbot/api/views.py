@@ -211,8 +211,8 @@ class ResetChatbotView(APIView):
         
         # Extract message and next from the request data
         session.current_step = "start"
-        session.state = json.dumps({})
-        session.questions_and_answers = json.dumps({})
+        session.state = {}
+        session.questions_and_answers = {}
         session.save()
 
 
