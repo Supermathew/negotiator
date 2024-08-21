@@ -171,13 +171,15 @@ class UpdateChatbotSessionView(APIView):
         data = request.data.get('data')
 
         current_step = session.current_step
-        questions_and_answers = session.questions_and_answers
+        questions_and_answers = request.data.get('process_data')
+        print(questions_and_answers)
+        # questions_and_answers = session.questions_and_answers
         
-        # Save the question and answer
-        questions_and_answers[previous_state] = {
-            'question': message,
-            'answer': response
-        }
+        # # Save the question and answer
+        # questions_and_answers[previous_state] = {
+        #     'question': message,
+        #     'answer': response
+        # }
         session.current_step = next_step
         session.state = data
         session.questions_and_answers = questions_and_answers
