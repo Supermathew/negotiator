@@ -2,12 +2,12 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-from chatbot.models import UserSession
+from chatbot.models import UserSession,Car
 from django.contrib.auth.models import User
 import json
 from rest_framework.permissions import IsAuthenticated
 from django.shortcuts import get_object_or_404
-import json
+from chatbot.api.serializers import CarSerializer
 
 class ChatbotView(APIView):
     permission_classes = [IsAuthenticated]
@@ -34,8 +34,25 @@ class ChatbotView(APIView):
                 ]
             },
             "new": {
-                "message": "Enter the Year, Make, Model and Trim",
-                "next": "tradeIn"
+                "message": "Enter the Manufacturer of the car.",
+                "next": "enter_model"
+            },  ## validation done
+            "enter_model": {
+                "message": "Enter the Model of the car.",
+                "next": "enter_year",
+            },
+            "enter_year": {
+                "message": "Enter the Year of the car.",
+                "next": "enter_trim"
+            },
+            "enter_trim": {
+                "message": "Enter the Trim of the car.",
+                "next": "enter_color"
+            },
+            "enter_color": {
+                "message": "Enter the Color of the car.",
+                "next": "tradeIn",
+                "validation": True
             },
             "used": {
                 "message": "Enter the VIN Number",
@@ -133,6 +150,111 @@ class ChatbotView(APIView):
             }
         }
         
+        # chatbot_config = {
+        #     "start": {
+        #         "message": "Are you buying a new car or a used car?",
+        #         "options": [
+        #             {"label": "New", "value": "new", "next": "new_car"},
+        #             {"label": "Used", "value": "used", "next": "enter_vin_used_Car"}
+        #         ]
+        #     },
+        #     "new_car": {
+        #         "message": "Enter the Manufacturer of the car.",
+        #         "next": "enter_model"
+        #     },  ## validation done
+        #     "enter_model": {
+        #         "message": "Enter the Model of the car.",
+        #         "next": "enter_year",
+        #     },
+        #     "enter_year": {
+        #         "message": "Enter the Year of the car.",
+        #         "next": "enter_trim"
+        #     },
+        #     "enter_trim": {
+        #         "message": "Enter the Trim of the car.",
+        #         "next": "enter_color"
+        #     },
+        #     "enter_color": {
+        #         "message": "Enter the Color of the car.",
+        #         "next": "trade_in_check",
+        #         "validation": True
+        #     },
+        #     "trade_in_check": {
+        #         "message": "Do you have a car to trade-in?",
+        #         "options": [
+        #             {
+        #             "label": "Yes",
+        #             "value": "trade_in",
+        #             "next":"enter_vin_new_Car"
+        #             },
+        #             {
+        #             "label": "No",
+        #             "value": "final_calculation"
+        #             }
+        #         ]
+        #     },
+        #     "enter_vin_used_Car": {
+        #         "message": "Enter the VIN number of the vehicle.",
+        #         "next": "damage_report"
+        #     },
+        #     # "enter_vin_new_Car": {
+        #     #     "message": "Let's get some details about the used car you want to buy.",
+        #     #     "next": "enter_vin"
+        #     # },
+        #     "enter_vin_new_Car": {
+        #         "message": "Enter the VIN number of the vehicle.",
+        #         "next": "damage_report"
+        #     },
+        #     "damage_report": {
+        #         "message": "Please specify any damage to the vehicle.",
+        #         "next": "enter_trade_in"
+        #     },
+        #     "enter_trade_in": {
+        #         "message": "Do you have a car to trade-in?",
+        #         "options": [
+        #             {
+        #             "label": "Yes",
+        #             "value": "enter_trade_in_vin"
+        #             },
+        #             {
+        #             "label": "No",
+        #             "value": "final_calculation"
+        #             }
+        #         ]
+        #     },
+        #     "enter_trade_in_vin": {
+        #         "message": "Enter the VIN number of the trade-in vehicle.",
+        #         "next": "enter_zipcode"
+        #     },
+        #     "enter_zipcode": {
+        #         "message": "Enter the zipcode of the trade-in vehicle.",
+        #         "next": "enter_mileage"
+        #     },
+        #     "enter_mileage": {
+        #         "message": "Enter the mileage of the trade-in vehicle.",
+        #         "next": "condition_report"
+        #     },
+        #     "condition_report": {
+        #         "message": "Please specify any damage to the trade-in vehicle.",
+        #         "next": "final_calculation"
+        #     },
+        #     "final_calculation": {
+        #        "message": "We are calculating the best price for your car.",
+        #        "next": "payment"
+        #     },
+        #     "payment": {
+        #        "message": "Proceeding to payment.",
+        #        "next": "payment_confirmation"
+        #     },
+        #     "payment_confirmation": {
+        #        "message": "Payment confirmation and quote will be sent to your email.",
+        #        "next": "end"
+        #     },
+        #     "end": {
+        #       "message": "Thank you for using Negotigator! If you need further assistance, please contact support."
+        #     }
+        # }
+        
         # Prepare the response data
         response_data = {
             "chatbot_config": chatbot_config,
@@ -180,7 +302,8 @@ class UpdateChatbotSessionView(APIView):
         #     'question': message,
         #     'answer': response
         # }
-        session.current_step = next_step
+        if next_step != "":
+           session.current_step = next_step
         session.state = data
         session.questions_and_answers = questions_and_answers
         session.save()
@@ -223,6 +346,73 @@ class ResetChatbotView(APIView):
         }
 
         return Response(response_data, status=status.HTTP_200_OK)
+    
+
+def validate_vehicle_combination(make, year, model, trim, color):
+    try:
+        combination = Car.objects.get(make=make, year=year, model=model, trim=trim, color=color)
+        return combination
+    except Car.DoesNotExist:
+        return None
+
+    
+
+from django.db.models import Q
+
+def suggest_vehicle_combinations(make=None, year=None, model=None, trim=None, color=None, search_term=None):
+    # Create a base query
+    query = Car.objects.all()
+    
+    if make:
+        query = query.filter(make__icontains=make)
+    if model:
+        query = query.filter(model__icontains=model)
+    if trim:
+        query = query.filter(trim__icontains=trim)
+    if color:
+        query = query.filter(color__icontains=color)
+
+    return query.distinct()
 
 
 
+def handle_user_input(make, year, model, trim, color):
+    valid_combination = validate_vehicle_combination(make, year, model, trim, color)
+    
+    if valid_combination:
+        response = {
+            "status": "success",
+            "message": "Your vehicle combination exists.",
+            "data": CarSerializer(valid_combination).data
+        }
+    else:
+        suggested_combinations = suggest_vehicle_combinations(make, year, model, trim, color)
+        
+        if suggested_combinations.exists():
+            response = {
+                "status": "success",
+                "message": "The exact combination does not exist, but here are some similar options:",
+                "data": CarSerializer(suggested_combinations, many=True).data  # Serialize the queryset
+            }
+        else:
+            response = {
+                "status": "failure",
+                "message": "No similar vehicle combinations found."
+            }
+    
+    return Response(response)
+
+
+
+class CheckCarModelView(APIView):
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        make = request.data.get('make')
+        year = request.data.get('year')
+        model = request.data.get('model')
+        trim = request.data.get('trim')
+        color = request.data.get('color')
+        
+        return handle_user_input(make, year, model, trim, color)

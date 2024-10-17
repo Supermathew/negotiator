@@ -19,7 +19,14 @@ from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
 from rest_framework_simplejwt.authentication import JWTAuthentication
-
+import json
+from django.conf import settings
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
+# from google.auth.transport import requests
+# from google.oauth2 import id_token
+from django.contrib.auth.models import User
+from rest_framework_simplejwt.tokens import RefreshToken
 
 Account = get_user_model()
 
@@ -201,4 +208,73 @@ class ActivateAccountAPIView(APIView):
         else:
             return Response({'message': 'Invalid activation link'}, status=status.HTTP_400_BAD_REQUEST)
         
-        
+
+
+import json
+import requests
+
+@csrf_exempt
+def verify_token(request):
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body)
+            token = data.get('token')
+
+            if not token:
+                return JsonResponse({'status': 'error', 'message': 'Token is required'}, status=400)
+            # Verify the token with Google's UserInfo endpoint
+            response = requests.get(
+                'https://www.googleapis.com/oauth2/v3/userinfo',
+                headers={'Authorization': f'Bearer {token}'}
+            )
+            if response.status_code != 200:
+                return JsonResponse({'status': 'error', 'message': 'Failed to fetch user info from Google'}, status=400)
+            
+            idinfo = response.json()
+            
+            user_id = idinfo.get('sub')
+            email = idinfo.get('email')
+            first_name = idinfo.get('given_name', '')
+            last_name = idinfo.get('family_name', '')
+            
+            if not email:
+                return JsonResponse({'status': 'error', 'message': 'Email not provided by Google'}, status=400)
+            
+            # Check if user exists, else create a new one
+            user, created = User.objects.get_or_create(
+                email=email,
+                defaults={
+                    'username': email,
+                    'first_name': first_name,
+                    'last_name': last_name,
+                    'password': None  # Set password to None as it's a social login
+                }
+            )
+            if created:
+                profile_data = {
+                    'user': user.id,
+                    'phone_number': '',  # Adjust based on actual profile model fields
+                }
+                profile_serializer = UserProfileSerializer(data=profile_data)
+                if profile_serializer.is_valid():
+                    profile_serializer.save()
+            
+            # Generate JWT tokens for the user
+            refresh = RefreshToken.for_user(user)
+            access_token = str(refresh.access_token)
+            refresh_token = str(refresh)
+            
+            return JsonResponse({
+                'status': 'success',
+                'user_id': user.id,
+                'email': email,
+                'access_token': access_token,
+                'refresh_token': refresh_token,
+            })
+        except ValueError as e:
+            # Invalid token or JSON
+            return JsonResponse({'status': 'error', 'message': 'Invalid token or JSON'}, status=400)
+        except Exception as e:
+            return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+    
+    return JsonResponse({'status': 'error', 'message': 'Invalid method'}, status=405)

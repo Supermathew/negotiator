@@ -15,3 +15,19 @@ class UserSession(models.Model):
 
     def __str__(self):
         return f"{self.user.username}"
+
+
+
+class Car(models.Model):
+    make = models.CharField(max_length=500)
+    year = models.PositiveIntegerField()
+    model = models.CharField(max_length=500)
+    trim = models.CharField(max_length=500)
+    color = models.CharField(max_length=500)
+
+    class Meta:
+        unique_together = ('make', 'year', 'model', 'trim', 'color')
+
+    def __str__(self):
+        return f"{self.year} {self.make} {self.model} {self.trim} {self.color}"
+
