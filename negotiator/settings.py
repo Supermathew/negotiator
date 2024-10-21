@@ -132,6 +132,8 @@ STATICFILES_DIRS = (
     os.path.join(BASE_DIR, "static"),
 )
 
+AUTH_USER_MODEL = 'accounts.Account'
+
 
 
 # Default primary key field type
